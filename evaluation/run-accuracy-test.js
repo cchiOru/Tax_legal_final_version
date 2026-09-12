@@ -33,6 +33,10 @@ const path = require('node:path');
 const {
   calculateThaiPIT,
   calculateLatePenalty,
+  ตรวจที่มาของค่าลดหย่อน,
+  ตรวจความสอดคล้องของประเภทเงินได้,
+  ปฏิเสธเพราะประเภทเงินได้ขัดแย้ง,
+  ผนวกผลด่าน,
 } = require('../n8n/tools/tax-calculator');
 
 const ROOT = path.join(__dirname, '..');
@@ -109,11 +113,20 @@ function loadProductionConfig() {
     }));
 
   const searchNode = byName('Search Tax Knowledge');
-  const keywordMap = JSON.parse(
-    /var map = (\[[\s\S]*?\]); var found/.exec(
-      searchNode.parameters.options.queryReplacement
-    )[1]
+  // ยึดจุดสิ้นสุดด้วย "; var tbl" ซึ่งเป็นบรรทัดถัดไปในนิพจน์ของโหนดนี้
+  // ถ้าแก้ KEYWORD_EXPRESSION ใน build-workflow.py แล้วสลับลำดับตัวแปร
+  // ต้องแก้นิพจน์ตรงนี้ด้วย ไม่งั้นโปรแกรมวัดผลจะอ่านตารางคำสำคัญไม่ได้
+  const mapMatch = /var map = (\[[\s\S]*?\]); var tbl/.exec(
+    searchNode.parameters.options.queryReplacement
   );
+  if (!mapMatch) {
+    throw new Error(
+      'อ่านตารางคำสำคัญจากโหนด Search Tax Knowledge ไม่ได้\n' +
+        'สาเหตุที่พบบ่อยคือมีการแก้ KEYWORD_EXPRESSION ใน n8n/build-workflow.py\n' +
+        'แล้วนิพจน์ที่ใช้ดึงค่าตรงนี้ไม่ตรงกับรูปแบบใหม่'
+    );
+  }
+  const keywordMap = JSON.parse(mapMatch[1]);
 
   // ลายนิ้วมือของการตั้งค่า ใช้ตรวจว่าผลที่บันทึกไว้เดิมยังใช้ต่อได้หรือไม่
   // ถ้าคำสั่งระบบ เครื่องมือ คำสำคัญ หรือฐานข้อมูลเปลี่ยน ผลเดิมใช้ร่วมกับผลใหม่ไม่ได้
@@ -257,11 +270,55 @@ function classifyIntent(question, rules) {
   return category;
 }
 
+// ---------------------------------------------------------------------------
+//  การรองรับคำที่สะกดผิด
+// ---------------------------------------------------------------------------
+//  ตรรกะในส่วนนี้ต้องตรงกับ KEYWORD_EXPRESSION ใน n8n/build-workflow.py เสมอ
+//  ถ้าสองที่ไม่ตรงกัน ตัวเลขที่วัดได้จะไม่ใช่ความสามารถของระบบที่ผู้ใช้เจอจริง
+//  เหตุผลเชิงออกแบบทั้งหมดอธิบายไว้ในไฟล์ build-workflow.py
+//
+//  สรุปเงื่อนไข 3 ข้อ
+//    1. เทียบแบบตรงตัวก่อนเสมอ การเทียบแบบปรับรูปเป็นส่วนเสริม
+//    2. ไม่ตัดวรรณยุกต์ เพราะทำให้ตัวดักสั้นจับกว้างเกินไป
+//    3. ใช้การเทียบแบบปรับรูปเฉพาะตัวดักที่ยาวตั้งแต่ 4 ตัวอักษรขึ้นไป
+// ---------------------------------------------------------------------------
+const กลุ่มพยัญชนะพ้องเสียง = [
+  ['ส', 'ศ', 'ษ', 'ซ'],
+  ['พ', 'ภ', 'ผ'],
+  ['ท', 'ธ', 'ฑ', 'ฒ', 'ถ', 'ฐ'],
+  ['ค', 'ข', 'ฆ', 'ฃ', 'ฅ'],
+  ['น', 'ณ'],
+  ['ล', 'ฬ'],
+  ['ด', 'ฎ'],
+  ['ต', 'ฏ'],
+  ['ย', 'ญ'],
+  ['ช', 'ฌ', 'ฉ'],
+  ['บ', 'ป'],
+];
+const ตารางพ้องเสียง = {};
+for (const กลุ่ม of กลุ่มพยัญชนะพ้องเสียง) {
+  for (const ตัว of กลุ่ม) ตารางพ้องเสียง[ตัว] = กลุ่ม[0];
+}
+const ความยาวต่ำสุดที่ปรับรูปได้ = 4;
+
+/** ยุบพยัญชนะพ้องเสียงให้เหลือตัวแทนกลุ่ม โดยไม่แตะวรรณยุกต์ */
+function ปรับรูปพ้องเสียง(s) {
+  let out = '';
+  const t = s || '';
+  for (let i = 0; i < t.length; i++) out += ตารางพ้องเสียง[t[i]] || t[i];
+  return out;
+}
+
 function retrieve(question, keywordMap, kb, limit = 3, isCalc = false) {
   const q = (question || '').toLowerCase();
+  const qn = ปรับรูปพ้องเสียง(q);
   const found = [];
   for (const [trigger, term] of keywordMap) {
-    if (q.indexOf(trigger) >= 0 && found.indexOf(term) < 0) found.push(term);
+    let hit = q.indexOf(trigger) >= 0;
+    if (!hit && trigger.length >= ความยาวต่ำสุดที่ปรับรูปได้) {
+      hit = qn.indexOf(ปรับรูปพ้องเสียง(trigger)) >= 0;
+    }
+    if (hit && found.indexOf(term) < 0) found.push(term);
   }
   const keys = found.length ? found : ['ภาษี'];
 
@@ -386,6 +443,33 @@ const TOOL_IMPL = {
   calculate_late_filing_penalty: calculateLatePenalty,
 };
 
+// ---------------------------------------------------------------------------
+// จำลองด่านตรวจที่มาของค่าลดหย่อน ให้ตรงกับที่โหนดเครื่องมือทำในระบบจริง
+// ---------------------------------------------------------------------------
+// ถ้าไม่จำลอง ตัวเลขที่วัดได้จะเป็นความสามารถของระบบที่ไม่มีด่าน
+// ซึ่งไม่ใช่ระบบที่ผู้ใช้เจอ และจะทำให้การวัดผลก่อนกับหลังเพิ่มด่านเทียบกันไม่ได้
+//
+// ตรรกะต้องตรงกับท่อนที่ load_calculator_code ใน n8n/build-workflow.py ต่อท้ายไว้
+// ชุดทดสอบ tests/test-tax-calculator.js เป็นตัวจับว่าสองที่ยังตรงกัน
+function เรียกเครื่องมือ(ชื่อ, ข้อมูลนำเข้า, คำถาม, ตัวดักคำถามต่อเนื่อง) {
+  const fn = TOOL_IMPL[ชื่อ];
+  if (!fn) return { ข้อผิดพลาด: 'ไม่รู้จักเครื่องมือนี้' };
+  if (ชื่อ !== 'calculate_thai_personal_income_tax') return fn(ข้อมูลนำเข้า);
+
+  // ข้อมูลนำเข้าขัดแย้งกันเอง ปฏิเสธก่อน ไม่คำนวณให้เลย
+  // ถ้าส่งตัวเลขกลับไปพร้อมคำเตือน แบบจำลองจะหยิบตัวเลขไปตอบแล้วข้ามการแก้ไข
+  // ซึ่งพิสูจน์แล้วจากผลวัดข้อ Q119 วันที่ 9 กันยายน 2569 ทั้งสามรอบ
+  const คำเตือน = ตรวจความสอดคล้องของประเภทเงินได้(ข้อมูลนำเข้า);
+  if (คำเตือน.length > 0) return ปฏิเสธเพราะประเภทเงินได้ขัดแย้ง(คำเตือน);
+
+  const q = String(คำถาม || '').toLowerCase();
+  const เป็นคำถามต่อเนื่อง = (ตัวดักคำถามต่อเนื่อง || []).some((คำ) => q.indexOf(คำ) >= 0);
+  if (เป็นคำถามต่อเนื่อง) return fn(ข้อมูลนำเข้า);
+
+  const ผลตรวจ = ตรวจที่มาของค่าลดหย่อน(ข้อมูลนำเข้า, คำถาม);
+  return ผนวกผลด่าน(fn(ผลตรวจ['ข้อมูล']), ผลตรวจ['ตัดออก']);
+}
+
 /** ถามระบบหนึ่งคำถาม โดยจำลองเส้นทางเดียวกับที่รันจริง */
 async function askSystem(provider, cfg, kb, question) {
   apiTimeMs = 0;
@@ -436,7 +520,6 @@ async function askSystem(provider, cfg, kb, question) {
     if (round === MAX_ROUNDS - 1) stillWantsTool = true;
     messages.push(choice.message);
     for (const call of calls) {
-      const fn = TOOL_IMPL[call.function.name];
       toolsCalled.push(call.function.name);
       // บันทึกข้อมูลนำเข้าที่แบบจำลองส่งให้เครื่องมือด้วย
       // เพราะเมื่อเรียกเครื่องมือแล้วแต่ได้ตัวเลขผิด สาเหตุอยู่ที่ข้อมูลนำเข้าเสมอ
@@ -444,7 +527,12 @@ async function askSystem(provider, cfg, kb, question) {
       toolArgs.push(call.function.arguments || '{}');
       let out;
       try {
-        out = fn ? fn(JSON.parse(call.function.arguments || '{}')) : { ข้อผิดพลาด: 'ไม่รู้จักเครื่องมือนี้' };
+        out = เรียกเครื่องมือ(
+          call.function.name,
+          JSON.parse(call.function.arguments || '{}'),
+          question,
+          cfg.intentRules.followupMarkers
+        );
       } catch (e) {
         out = { สำเร็จ: false, ข้อผิดพลาด: String(e.message) };
       }
@@ -858,11 +946,25 @@ async function main() {
   const estTokens = Math.round(promptCharsMax / 1.5);
   console.log(`\nขนาดข้อมูลนำเข้าสูงสุด : ${promptCharsMax.toLocaleString('en-US')} ตัวอักษร (~${estTokens.toLocaleString('en-US')} โทเคน)`);
 
-  // ถามค่า num_ctx จริงจาก Ollama แทนการเดา จะได้ไม่เตือนผิดหลังผู้ใช้แก้ไขแล้ว
+  // ---------------------------------------------------------------------
+  //  ถามค่า num_ctx จริงจาก Ollama แทนการเดา
+  // ---------------------------------------------------------------------
+  //  เดิมจับข้อผิดพลาดแล้วเงียบ แล้วตกไปใช้ค่าเดา 4,096 โทเคน
+  //  ซึ่งทำให้วินิจฉัยผิดทางเมื่อ Ollama ไม่ทำงาน
+  //
+  //  เหตุการณ์จริงวันที่ 10 กันยายน 2569
+  //    รัน --model=typhoon แล้ววัดได้ 0 จาก 155 ข้อ
+  //    สรุปผลขึ้นคำเตือนว่า "ข้อมูลนำเข้าใกล้เต็มหน้าต่างบริบท (4,096 โทเคน)"
+  //    ทั้งที่โมเดลถูกตั้ง num_ctx ไว้ 12,288 มาตั้งแต่เดือนสิงหาคม
+  //    เลข 4,096 นั้นคือค่าเดา ไม่ใช่ค่าจริง และสาเหตุจริงคือ Ollama ติดต่อไม่ได้
+  //
+  //  คนอ่านรายงานจะไล่แก้หน้าต่างบริบทซึ่งไม่ใช่ปัญหา
+  //  จึงต้องแยกให้ชัดว่า "อ่านค่าได้" กับ "ติดต่อไม่ได้" เป็นสองสถานะ
   let ollamaCtx = null;
+  let เหตุที่อ่านค่าไม่ได้ = null;
   if (args.model === 'typhoon') {
+    const base = (ENV.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/v1\/?$/, '');
     try {
-      const base = (ENV.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/v1\/?$/, '');
       const res = await fetch(`${base}/api/show`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -873,21 +975,42 @@ async function main() {
         const info = await res.json();
         const m = /num_ctx\s+(\d+)/.exec(info.parameters || '');
         ollamaCtx = m ? Number(m[1]) : 4096; // ไม่ได้ตั้งไว้ = ใช้ค่าเริ่มต้น
+      } else if (res.status === 404) {
+        เหตุที่อ่านค่าไม่ได้ =
+          `Ollama ตอบว่าไม่มีแบบจำลองชื่อ "${provider.model}" (HTTP 404)\n` +
+          `  ตรวจด้วย  ollama list  แล้วสร้างใหม่ตาม n8n/ollama/README.md\n` +
+          '  หรือแก้ค่า TYPHOON_MODEL ในไฟล์ .env ให้ตรงกับชื่อที่มีอยู่';
+      } else {
+        เหตุที่อ่านค่าไม่ได้ = `Ollama ตอบกลับด้วย HTTP ${res.status}`;
       }
-    } catch (_) {
-      // ถามไม่ได้ก็ไม่เป็นไร จะกลับไปใช้การเดาแบบเดิม
+    } catch (e) {
+      เหตุที่อ่านค่าไม่ได้ =
+        `ติดต่อ Ollama ที่ ${base} ไม่ได้ (${e.name === 'TimeoutError' ? 'หมดเวลารอ' : e.message})\n` +
+        '  ตรวจว่า Ollama ทำงานอยู่  docker compose ps  หรือ  ollama list';
     }
     if (ollamaCtx !== null) {
       console.log(`หน้าต่างบริบทของแบบจำลอง : ${ollamaCtx.toLocaleString('en-US')} โทเคน (อ่านจาก Ollama โดยตรง)`);
     }
   }
 
-  const ctxLimit = ollamaCtx !== null ? ollamaCtx : 4096;
-  if (args.model === 'typhoon' && estTokens > ctxLimit * 0.85) {
-    console.log(`  คำเตือน: ข้อมูลนำเข้าใกล้เต็มหน้าต่างบริบท (${ctxLimit.toLocaleString('en-US')} โทเคน)`);
-    console.log('  Ollama จะตัดข้อมูลส่วนหน้าทิ้งเงียบ ๆ ซึ่งคือคำสั่งระบบและกฎหมายที่ค้นมา');
-    console.log('  ผลที่วัดได้ในสภาพนี้ไม่ได้สะท้อนความสามารถจริงของแบบจำลอง');
-    console.log('  วิธีแก้: สร้างแบบจำลองที่ตั้งหน้าต่างบริบทใหม่ ดู n8n/ollama/README.md');
+  // Ollama ติดต่อไม่ได้และไม่มีข้อไหนวัดสำเร็จเลย
+  // ต้องบอกสาเหตุจริง ห้ามเตือนเรื่องหน้าต่างบริบทจากค่าเดา เพราะจะชี้ผิดทาง
+  if (เหตุที่อ่านค่าไม่ได้ && done.length === 0) {
+    console.log('\n  สาเหตุที่วัดไม่ได้เลยแม้แต่ข้อเดียว');
+    console.log('  ' + เหตุที่อ่านค่าไม่ได้);
+    console.log('  หมายเหตุ ตัวเลขหน้าต่างบริบทด้านล่างจะไม่แสดง เพราะยังอ่านค่าจริงไม่ได้');
+  } else {
+    const ctxLimit = ollamaCtx !== null ? ollamaCtx : 4096;
+    if (args.model === 'typhoon' && estTokens > ctxLimit * 0.85) {
+      const ที่มาของค่า = ollamaCtx !== null ? 'ค่าจริงจาก Ollama' : 'ค่าเดา เพราะอ่านค่าจริงไม่ได้';
+      console.log(
+        `  คำเตือน: ข้อมูลนำเข้าใกล้เต็มหน้าต่างบริบท (${ctxLimit.toLocaleString('en-US')} โทเคน, ${ที่มาของค่า})`
+      );
+      console.log('  Ollama จะตัดข้อมูลส่วนหน้าทิ้งเงียบ ๆ ซึ่งคือคำสั่งระบบและกฎหมายที่ค้นมา');
+      console.log('  ผลที่วัดได้ในสภาพนี้ไม่ได้สะท้อนความสามารถจริงของแบบจำลอง');
+      console.log('  วิธีแก้: สร้างแบบจำลองที่ตั้งหน้าต่างบริบทใหม่ ดู n8n/ollama/README.md');
+      if (เหตุที่อ่านค่าไม่ได้) console.log('  ' + เหตุที่อ่านค่าไม่ได้);
+    }
   }
 
   const failed = done.filter((r) => r.ผล !== 'ผ่าน');
