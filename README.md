@@ -102,9 +102,12 @@ docker compose up -d
 docker compose ps
 ```
 
-ต้องขึ้นครบ 5 ตัวและมีสถานะ running หรือ healthy — `tax-advisor-postgres`, `tax-advisor-n8n`,
-`tax-advisor-ngrok`, `tax-advisor-pgadmin`, `tax-advisor-admin`
+ต้องขึ้นครบ 4 ตัวและมีสถานะ running หรือ healthy — `tax-advisor-postgres`, `tax-advisor-n8n`,
+`tax-advisor-ngrok`, `tax-advisor-admin`
 ถ้าตัวไหน exited ให้ดูสาเหตุด้วย `docker compose logs ชื่อตัวนั้น`
+
+> pgadmin เป็นบริการเสริมสำหรับดูฐานข้อมูลผ่านหน้าเว็บ ตั้ง `profiles: tools` ไว้จึงไม่ขึ้นตามปกติ
+> ถ้าต้องการใช้ให้สั่ง `docker compose --profile tools up -d` แล้วเปิด http://localhost:5050
 
 ### 3 ใส่ความรู้เรื่องกฎหมายภาษี
 
