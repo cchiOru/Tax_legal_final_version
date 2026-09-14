@@ -77,8 +77,8 @@ Development of an AI-Based Tax Advisory System on LINE Using Workflow Automation
 ### 1 ดาวน์โหลดและตั้งค่า
 
 ```bash
-git clone https://github.com/cchiOru/Tax-Advisor-AI-Chatbot-LINE-.git
-cd Tax-Advisor-AI-Chatbot-LINE-
+git clone https://github.com/cchiOru/Tax_legal_final_version.git
+cd Tax_legal_final_version
 cp .env.example .env
 ```
 
