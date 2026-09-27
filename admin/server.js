@@ -541,7 +541,7 @@ ${
 //  ดู postgres/migrations/010-add-reports-and-human-support.sql
 const ชื่อสาเหตุ = {
   not_match: 'ตอบไม่ตรงคำถาม',
-  cannot: 'ระบบบอกว่าตอบไม่ได้',
+  cannot: 'ตอบคำถามไม่ได้',
   wrong_info: 'ข้อมูลไม่ถูกต้อง',
 };
 

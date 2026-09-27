@@ -130,18 +130,21 @@ test('FG-05 เส้นทางปุ่มต้องแยกจากเ�
   assert.deepStrictEqual(ปลายทางของ('Save Feedback'), ['Send Feedback Thanks']);
 });
 
-test('FG-26 ปุ่มรายงานและปุ่มขอคุยกับแอดมิน ต้องแยกทางกันถูกต้อง', () => {
+test('FG-26 ปุ่มรายงาน ต้องแยกออกจากปุ่มยินยอมแล้วไปบันทึกโดยตรง', () => {
+  // เดิมมีปุ่มขอคุยกับเจ้าหน้าที่แยกอีกชั้นหนึ่งด้วย ถอดออกเมื่อ 27 กันยายน 2569
+  // เส้นทางจึงสั้นลงเหลือสองชั้น คือแยกจากปุ่มยินยอม แล้วบันทึกรายงานเลย
   assert.deepStrictEqual(
     ปลายทางของ('Check Report Postback', 0),
-    ['Check Support Postback'],
-    'ปุ่มรายงานกับปุ่มขอคุยกับแอดมินต้องถูกแยกออกจากปุ่มยินยอมก่อน'
+    ['Save Report'],
+    'ปุ่มรายงานต้องถูกแยกออกจากปุ่มยินยอมแล้วไปบันทึกทันที'
   );
-  assert.deepStrictEqual(ปลายทางของ('Check Support Postback', 0), ['Start Human Support']);
-  assert.deepStrictEqual(ปลายทางของ('Check Support Postback', 1), ['Save Report']);
-  assert.deepStrictEqual(ปลายทางของ('Start Human Support'), ['Send Report Result']);
+  assert.deepStrictEqual(
+    ปลายทางของ('Check Report Postback', 1),
+    ['Save Consent'],
+    'ทางเท็จต้องเป็นปุ่มตอบเรื่องความยินยอม'
+  );
   assert.deepStrictEqual(ปลายทางของ('Save Report'), ['Send Report Result']);
 });
-
 test('FG-27 คำสั่งบันทึกรายงาน ต้องบันทึกได้แม้ผู้ใช้ไม่ยินยอมให้เก็บประวัติ', () => {
   const q = โหนด('Save Report').parameters.query;
   // ถ้าเขียนเป็น INSERT ... SELECT จาก conversations ตรง ๆ
@@ -153,14 +156,26 @@ test('FG-27 คำสั่งบันทึกรายงาน ต้อง�
   );
 });
 
-test('FG-28 โหมดคุยกับแอดมินต้องมีวันหมดอายุ ไม่ใช่ค่าจริงเท็จ', () => {
-  const q = โหนด('Start Human Support').parameters.query;
-  assert.ok(
-    /interval '24 hours'/.test(q),
-    'ถ้าแอดมินลืมปิด ผู้ใช้ต้องกลับมาใช้บอทได้เองเมื่อครบเวลา'
-  );
+test('FG-28 ต้องไม่เหลือร่องรอยของโหมดคุยกับแอดมินในเวิร์กโฟลว์', () => {
+  // ถอดออกเมื่อ 27 กันยายน 2569 ตามที่ผู้จัดทำตัดสินใจหลังให้ผู้ใช้จริงทดลองใช้
+  // ข้อนี้กันไม่ให้มีใครเผลอเพิ่มโหนดกลับเข้ามาแล้วลืมต่อทางออกให้ผู้ใช้
+  // ซึ่งจะทำให้ผู้ใช้ติดค้างในโหมดที่ไม่มีปุ่มอะไรพาออกมาได้เลย
+  for (const ชื่อ of [
+    'Check Support Postback',
+    'Start Human Support',
+    'Read Human Support',
+    'Is Human Support Active',
+  ]) {
+    assert.strictEqual(
+      wf.nodes.find((n) => n.name === ชื่อ),
+      undefined,
+      `โหนด ${ชื่อ} ถูกถอดออกไปแล้ว ไม่ควรกลับมา`
+    );
+  }
+  const ดิบ = JSON.stringify(wf);
+  assert.ok(ดิบ.indexOf('support=') < 0, 'ต้องไม่เหลือปุ่มหรือเงื่อนไขที่ใช้คำขึ้นต้น support=');
+  assert.ok(ดิบ.indexOf('human_support_until') < 0, 'ต้องไม่มีโหนดไหนอ่านหรือเขียนคอลัมน์นี้อีก');
 });
-
 test('FG-06 เงื่อนไขแยกชนิดปุ่ม ต้องดูจากคำขึ้นต้นของข้อมูล', () => {
   const c = โหนด('Check Postback Type').parameters.conditions.conditions[0];
   assert.strictEqual(c.rightValue, 'fb=');
@@ -400,24 +415,13 @@ test('FG-19 คำทักทายต้องถูกดักก่อน�
   // เพราะตัวนับรอบถามความเห็นอยู่ในคำสั่งอัปเดตผู้ใช้
   // คำทักทายจึงกินรอบนั้นไป ทั้งที่ระบบไม่ได้ตอบอะไรให้ผู้ใช้ประเมิน
   // ผลคือทักทายหนึ่งครั้ง แล้วคำถามจริงข้อถัดไปไม่ถูกถามความเห็น
-  // ตั้งแต่เพิ่มโหมดคุยกับแอดมิน มีด่านคั่นอยู่หนึ่งชั้นก่อนถึงตัวดักคำทักทาย
-  // ด่านนั้นอ่านฐานข้อมูลหนึ่งครั้ง แต่ไม่เรียกแบบจำลองและไม่เรียก LINE Profile API
-  // จึงยังถือว่าคำทักทายถูกดักก่อนขั้นตอนที่มีค่าใช้จ่ายจริง
+  // เคยมีด่านโหมดคุยกับแอดมินคั่นอยู่หนึ่งชั้นก่อนถึงตัวดักคำทักทาย
+  // ถอดออกเมื่อ 27 กันยายน 2569 เส้นทางจึงกลับมาตรงเหมือนเดิม
+  // และประหยัดการอ่านฐานข้อมูลไปหนึ่งครั้งต่อทุกข้อความที่เข้ามา
   assert.deepStrictEqual(
     ปลายทางของ('Check Consent Command', 1),
-    ['Read Human Support'],
-    'ข้อความปกติต้องผ่านด่านโหมดคุยกับแอดมินก่อน'
-  );
-  assert.deepStrictEqual(ปลายทางของ('Read Human Support'), ['Is Human Support Active']);
-  assert.deepStrictEqual(
-    ปลายทางของ('Is Human Support Active', 0),
-    [],
-    'ขณะคุยกับแอดมิน บอทต้องเงียบสนิท ไม่ต่อไปไหนเลย'
-  );
-  assert.deepStrictEqual(
-    ปลายทางของ('Is Human Support Active', 1),
     ['Check Small Talk'],
-    'ข้อความปกติต้องผ่านตัวดักคำทักทายก่อนถึงขั้นตอนอื่น'
+    'ข้อความปกติต้องเข้าตัวดักคำทักทายโดยตรง'
   );
   assert.deepStrictEqual(ปลายทางของ('Check Small Talk'), ['Is Small Talk']);
   assert.deepStrictEqual(ปลายทางของ('Is Small Talk', 0), ['Send Small Talk Reply']);
@@ -689,7 +693,6 @@ test('FG-32 ปุ่มรายงาน ต้องใช้ปุ่มช�
     'report=cannot',
     'report=not_match',
     'report=wrong_info',
-    'support=on',
   ]);
 });
 
