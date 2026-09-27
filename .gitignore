@@ -54,3 +54,5 @@ node_modules/
 Thumbs.db
 .vscode/
 .idea/
+
+Claude outputs/
