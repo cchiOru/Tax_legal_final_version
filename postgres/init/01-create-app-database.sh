@@ -1,7 +1,6 @@
 #!/bin/bash
-# สร้างฐานข้อมูลแยกต่างหากสำหรับข้อมูลแอป (tax_advisor)
-# นอกเหนือจากฐานข้อมูลที่ n8n ใช้เก็บข้อมูลภายในของตัวเอง (POSTGRES_DB)
-# สคริปต์นี้จะถูกรันอัตโนมัติครั้งแรกที่ container postgres ถูกสร้าง (volume ว่างเปล่า)
+# สร้างฐานข้อมูลแอป (APP_DB_NAME) แยกจากฐานข้อมูลภายในของ n8n (POSTGRES_DB)
+# รันอัตโนมัติครั้งแรกที่สร้าง container postgres (volume ว่าง)
 set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL

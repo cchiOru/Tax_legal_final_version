@@ -1,13 +1,6 @@
-# ============================================================================
-#  ระบบที่ปรึกษาด้านภาษีด้วย AI บน LINE (Tax Advisor AI Chatbot)
-#  Services: PostgreSQL (n8n + app data), n8n (workflow automation), ngrok (tunnel)
-# ----------------------------------------------------------------------------
-#  หมายเหตุด้านการทำซ้ำผลการทดลอง (Reproducibility):
-#  เวอร์ชันของทุก image ถูกกำหนดผ่านตัวแปรในไฟล์ .env เพื่อให้ระบบที่ติดตั้งใหม่
-#  ได้สภาพแวดล้อมเดียวกับที่ใช้เก็บผลการทดลองทุกครั้ง หากปล่อยเป็น :latest
-#  ผลการทดสอบที่รายงานไว้อาจทำซ้ำไม่ได้เมื่อผู้ให้บริการปล่อยเวอร์ชันใหม่
-#  ให้ระบุเวอร์ชันที่ใช้จริงลงในรายงานบทที่ 3 หัวข้อเครื่องมือที่ใช้ในการวิจัย
-# ============================================================================
+# ระบบที่ปรึกษาภาษีด้วย AI บน LINE (Tax Advisor AI Chatbot)
+# บริการ: postgres (ข้อมูล n8n + แอป), n8n, ngrok (tunnel), admin (หน้าหลังบ้าน), pgadmin (เปิดเมื่อต้องการ)
+# เวอร์ชัน image ของ postgres/n8n ตั้งใน .env ควรระบุเลขจริงแทน latest เพื่อให้ติดตั้งใหม่แล้วได้ผลเหมือนเดิม
 
 services:
   postgres:
@@ -64,8 +57,7 @@ services:
       LINE_CHANNEL_ACCESS_TOKEN: ${LINE_CHANNEL_ACCESS_TOKEN}
       LINE_CHANNEL_SECRET: ${LINE_CHANNEL_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      # ชื่อแบบจำลองที่ใช้งานอยู่จริง ใช้บันทึกลงตาราง conversations เพื่อวิเคราะห์ผล
-      # ต้องอัปเดตค่านี้ใน .env ทุกครั้งที่สลับแบบจำลอง แล้วรัน docker compose up -d --force-recreate n8n
+      # ชื่อโมเดลที่บันทึกลง conversations สลับโมเดลแล้วต้องแก้ใน .env และรัน docker compose up -d --force-recreate n8n
       ACTIVE_MODEL_NAME: ${ACTIVE_MODEL_NAME:-unknown}
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
     volumes:
@@ -96,13 +88,8 @@ services:
     profiles:
       - ngrok # เปิดใช้ด้วย: docker compose --profile ngrok up -d
 
-  # ==========================================================================
-  #  pgAdmin: หน้าจอเว็บสำหรับดูและจัดการฐานข้อมูล
-  #  เปิดใช้เมื่อต้องการเท่านั้น ไม่ได้รันตลอดเวลาเพื่อไม่ให้กินทรัพยากรเครื่อง
-  #    เปิด : docker compose --profile tools up -d pgadmin
-  #    ปิด  : docker compose stop pgadmin
-  #    เข้าใช้ที่ http://localhost:5050
-  # ==========================================================================
+  # ---- pgAdmin: เว็บดูฐานข้อมูล เปิดเมื่อต้องการ (http://localhost:5050) ----
+  #   เปิด: docker compose --profile tools up -d pgadmin   ปิด: docker compose stop pgadmin
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: tax-advisor-pgadmin
@@ -110,12 +97,12 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@taxadvisor.local}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin1234}
-      # ปิดหน้าจอถามรหัสผ่านหลักซ้ำ เพื่อความสะดวกในการใช้งานบนเครื่องพัฒนา
+      # ไม่ถามรหัสผ่านหลักซ้ำ (สะดวกบนเครื่องพัฒนา)
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
       - "${PGADMIN_PORT:-5050}:80"
     volumes:
-      # ตั้งค่าการเชื่อมต่อฐานข้อมูลไว้ล่วงหน้า ไม่ต้องกรอกเองตอนเปิดครั้งแรก
+      # ตั้งค่าการเชื่อมต่อฐานข้อมูลไว้ล่วงหน้า
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
@@ -126,17 +113,9 @@ services:
     profiles:
       - tools
 
-  # ==========================================================================
-  #  หน้าเว็บหลังบ้านสำหรับผู้ดูแลระบบ
-  #    เข้าใช้ที่ http://localhost:8080
-  #
-  #  ดูสถิติการใช้งาน จัดการฐานข้อมูล และดูคะแนนความพึงพอใจ
-  #  แต่ดูประวัติการสนทนาของผู้ใช้ไม่ได้ ไม่ว่ากรณีใด
-  #
-  #  บริการนี้ต่อฐานข้อมูลด้วยบัญชี tax_admin_readonly
-  #  ซึ่งถูกเพิกถอนสิทธิ์อ่านตาราง conversations และ n8n_chat_histories
-  #  ไว้ตั้งแต่ระดับฐานข้อมูลแล้ว ดู postgres/migrations/005-add-admin-support.sql
-  # ==========================================================================
+  # ---- หน้าเว็บหลังบ้าน (http://localhost:8080) ----
+  #   ดูสถิติ จัดการฐานความรู้ ดูคะแนนความพึงพอใจ แต่อ่านประวัติแชทไม่ได้
+  #   ต่อฐานข้อมูลด้วย tax_admin_readonly ซึ่งไม่มีสิทธิ์อ่านตารางแชท (ดู postgres/migrations/005-add-admin-support.sql)
   admin:
     build: ./admin
     container_name: tax-advisor-admin
@@ -146,18 +125,16 @@ services:
       ADMIN_DB_HOST: postgres
       ADMIN_DB_PORT: 5432
       APP_DB_NAME: ${APP_DB_NAME:-tax_advisor}
-      # รหัสผ่านสำหรับเข้าหน้าเว็บ ตั้งใน .env
+      # รหัสผ่านเข้าหน้าเว็บ (ตั้งใน .env)
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      # รหัสผ่านของบัญชีฐานข้อมูล tax_admin_readonly ตั้งใน .env
+      # รหัสผ่านบัญชีฐานข้อมูล tax_admin_readonly (ตั้งใน .env)
       ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
       TZ: ${GENERIC_TIMEZONE:-Asia/Bangkok}
     ports:
-      # ผูกกับ 127.0.0.1 เท่านั้น ไม่เปิดออกสู่เครือข่ายภายนอก
-      # หน้าหลังบ้านไม่ควรเข้าถึงได้จากอินเทอร์เน็ตแม้จะมีรหัสผ่านแล้วก็ตาม
+      # ผูกกับ 127.0.0.1 เท่านั้น หน้าหลังบ้านไม่ควรเข้าถึงได้จากอินเทอร์เน็ตแม้มีรหัสผ่าน
       - "127.0.0.1:${ADMIN_WEB_PORT:-8080}:8080"
     volumes:
-      # อ่านไฟล์เวิร์กโฟลว์เพื่อใช้ตารางคำสำคัญและงบบริบทชุดเดียวกับระบบจริง
-      # โค้ดอยู่ที่ /app จึงมองหาไฟล์ที่ /n8n/workflows ซึ่งตรงกับที่ผูกไว้ตรงนี้
+      # ใช้คำสำคัญและงบบริบทชุดเดียวกับเวิร์กโฟลว์จริง โค้ดอยู่ที่ /app จึงหาไฟล์ที่ /n8n/workflows
       # ผูกแบบอ่านอย่างเดียว หน้าหลังบ้านต้องแก้เวิร์กโฟลว์ไม่ได้
       - ./n8n/workflows:/n8n/workflows:ro
     depends_on:

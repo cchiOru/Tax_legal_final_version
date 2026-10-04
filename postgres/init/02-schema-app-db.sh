@@ -1,20 +1,16 @@
 #!/bin/bash
-# สร้างตารางในฐานข้อมูล tax_advisor (users, conversations, tax_knowledge, tax_deductions)
+# สร้างตารางและ view ตั้งต้นในฐานข้อมูลแอป (APP_DB_NAME) รันอัตโนมัติครั้งแรกที่สร้าง container
 set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "${APP_DB_NAME}" <<-'EOSQL'
 
--- =========================================================
--- ผู้ใช้งานที่ทักผ่าน LINE Official Account
--- =========================================================
+-- ---- ผู้ใช้ที่ทักผ่าน LINE ----
 CREATE TABLE IF NOT EXISTS users (
     id              SERIAL PRIMARY KEY,
     line_user_id    VARCHAR(64) UNIQUE NOT NULL,
     display_name    VARCHAR(255),
-    -- ความยินยอมให้เก็บข้อมูลส่วนบุคคล ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562
-    --   pending ถามแล้วยังไม่ตอบ / granted ยินยอม / denied ไม่ยินยอม
-    -- ค่าเริ่มต้นเป็น pending เสมอ ห้ามตั้งเป็น granted โดยอัตโนมัติ
-    -- เพราะการนิ่งเฉยไม่ถือเป็นการให้ความยินยอม
+    -- ความยินยอม PDPA: pending ยังไม่ตอบ / granted ยินยอม / denied ไม่ยินยอม
+    -- ค่าเริ่มต้นต้องเป็น pending ห้ามเป็น granted เพราะการนิ่งเฉยไม่ถือว่ายินยอม
     consent_status  VARCHAR(16) NOT NULL DEFAULT 'pending'
                     CHECK (consent_status IN ('pending', 'granted', 'denied')),
     consent_at      TIMESTAMPTZ,
@@ -24,9 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE INDEX IF NOT EXISTS idx_users_consent_status ON users (consent_status);
 
--- =========================================================
--- ประวัติการสนทนา (บันทึกไว้เพื่อนำไปวิเคราะห์ผลในบทที่ 4)
--- =========================================================
+-- ---- ประวัติการสนทนา (ใช้วิเคราะห์ผล) ----
 CREATE TABLE IF NOT EXISTS conversations (
     id                SERIAL PRIMARY KEY,
     user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -41,10 +35,8 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE INDEX IF NOT EXISTS idx_conversations_user_id_created_at
     ON conversations (user_id, created_at);
 
--- =========================================================
--- หน่วยความจำบทสนทนาของ n8n (Postgres Chat Memory)
--- n8n สร้างให้อัตโนมัติ แต่ประกาศไว้เพื่อให้ติดตั้งซ้ำได้เหมือนเดิมทุกครั้ง
--- =========================================================
+-- ---- หน่วยความจำแชทของ n8n (Postgres Chat Memory) ----
+-- n8n สร้างเองได้ แต่ประกาศไว้ให้ติดตั้งซ้ำได้เหมือนเดิม
 CREATE TABLE IF NOT EXISTS n8n_chat_histories (
     id         SERIAL PRIMARY KEY,
     session_id VARCHAR(255) NOT NULL,
@@ -53,9 +45,7 @@ CREATE TABLE IF NOT EXISTS n8n_chat_histories (
 CREATE INDEX IF NOT EXISTS idx_n8n_chat_histories_session
     ON n8n_chat_histories (session_id);
 
--- =========================================================
--- ฐานข้อมูลกฎหมายภาษี (ใช้ประกอบการตอบคำถามของ AI Agent)
--- =========================================================
+-- ---- ความรู้ภาษีให้ AI Agent ใช้ประกอบคำตอบ ----
 CREATE TABLE IF NOT EXISTS tax_knowledge (
     id              SERIAL PRIMARY KEY,
     category        VARCHAR(100) NOT NULL,      -- เช่น 'ภ.ง.ด.90', 'ค่าลดหย่อน', 'กำหนดเวลา'
@@ -65,9 +55,7 @@ CREATE TABLE IF NOT EXISTS tax_knowledge (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- =========================================================
--- ตารางอ้างอิงค่าลดหย่อนภาษีเงินได้บุคคลธรรมดา (สำหรับคำนวณเบื้องต้น)
--- =========================================================
+-- ---- ค่าลดหย่อนภาษีเงินได้บุคคลธรรมดา (ใช้คำนวณเบื้องต้น) ----
 CREATE TABLE IF NOT EXISTS tax_deductions (
     id              SERIAL PRIMARY KEY,
     deduction_name  VARCHAR(255) NOT NULL,
@@ -76,10 +64,7 @@ CREATE TABLE IF NOT EXISTS tax_deductions (
     tax_year        INTEGER NOT NULL DEFAULT 2568
 );
 
--- ---------------------------------------------------------
--- ข้อมูลตั้งต้น (seed) ค่าลดหย่อนหลักที่พบบ่อย ปีภาษี 2568
--- โปรดตรวจสอบ/อัปเดตให้ตรงกับประกาศกรมสรรพากรล่าสุดก่อนใช้งานจริง
--- ---------------------------------------------------------
+-- ค่าลดหย่อนหลัก ปีภาษี 2568 ควรตรวจกับประกาศกรมสรรพากรล่าสุดก่อนใช้จริง
 INSERT INTO tax_deductions (deduction_name, max_amount, description, tax_year) VALUES
     ('ค่าลดหย่อนส่วนตัว', 60000, 'ลดหย่อนได้ทุกกรณีสำหรับผู้มีเงินได้', 2568),
     ('ค่าลดหย่อนคู่สมรส', 60000, 'กรณีคู่สมรสไม่มีเงินได้', 2568),
@@ -89,9 +74,7 @@ INSERT INTO tax_deductions (deduction_name, max_amount, description, tax_year) V
     ('เบี้ยประกันชีวิต', 100000, 'กรมธรรม์อายุ 10 ปีขึ้นไป', 2568)
 ON CONFLICT DO NOTHING;
 
--- =========================================================
--- ฐานข้อมูลกฎหมายภาษีแบบละเอียด (ใช้ทำ RAG ให้ AI Agent ค้นก่อนตอบ)
--- =========================================================
+-- ---- ฐานความรู้กฎหมายภาษีแบบละเอียด (RAG ให้ AI ค้นก่อนตอบ) ----
 CREATE TABLE IF NOT EXISTS tax_law_knowledge (
     id          SERIAL PRIMARY KEY,
     category    VARCHAR(100),
@@ -104,9 +87,7 @@ CREATE TABLE IF NOT EXISTS tax_law_knowledge (
 CREATE INDEX IF NOT EXISTS idx_tax_law_knowledge_fts
     ON tax_law_knowledge USING GIN (to_tsvector('simple', coalesce(category,'') || ' ' || coalesce(title,'') || ' ' || coalesce(content,'')));
 
--- =========================================================
--- มุมมองสำเร็จรูปสำหรับวิเคราะห์ผลในบทที่ 4
--- =========================================================
+-- ---- view สถิติสำหรับวิเคราะห์ผล ----
 CREATE OR REPLACE VIEW v_response_time_stats AS
 SELECT
     COUNT(*)                                                              AS จำนวนคำตอบ,

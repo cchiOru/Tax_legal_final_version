@@ -1,9 +1,6 @@
--- ================================================================
---  seed-tax-law.sql
---  ฐานข้อมูลกฎหมายภาษีไทย สำหรับ AI Tax Advisor (RAG)
---  วิธีรันกับฐานข้อมูลที่ใช้งานอยู่จริง (ไม่ล้างข้อมูลเดิม):
---    docker exec -i tax-advisor-postgres psql -U <POSTGRES_USER> -d tax_advisor < seed-tax-law.sql
--- ================================================================
+-- ชุดแรก: สร้างตาราง tax_law_knowledge ถ้ายังไม่มี แล้วใส่ความรู้ภาษีพื้นฐาน
+-- 14 รายการ ปีภาษี 2567 (5 รายการถูกแทนที่แล้ว seed-tax-law-full.sql จะลบออกให้ตอนนำเข้า)
+-- ไฟล์นี้ TRUNCATE ทั้งตาราง ต้องรันเป็นไฟล์แรก ถ้ารันทีหลังข้อมูลชุดอื่นจะหายหมด
 
 CREATE TABLE IF NOT EXISTS tax_law_knowledge (
     id          SERIAL PRIMARY KEY,
@@ -18,12 +15,9 @@ CREATE TABLE IF NOT EXISTS tax_law_knowledge (
 CREATE INDEX IF NOT EXISTS idx_tax_law_knowledge_fts
     ON tax_law_knowledge USING GIN (to_tsvector('simple', coalesce(category,'') || ' ' || coalesce(title,'') || ' ' || coalesce(content,'')));
 
--- กันรันซ้ำแล้วข้อมูลซ้ำ: ล้างของเดิมก่อน (ตารางนี้ใช้เป็น reference data ล้วนๆ ไม่ผูกกับ FK ใด)
 TRUNCATE TABLE tax_law_knowledge RESTART IDENTITY;
 
--- ================================================================
--- หมวดที่ 1: ภาษีเงินได้บุคคลธรรมดา (Personal Income Tax)
--- ================================================================
+-- ---- หมวดที่ 1: ภาษีเงินได้บุคคลธรรมดา ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -79,9 +73,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
--- หมวดที่ 2: ค่าลดหย่อน (Tax Deductions)
--- ================================================================
+-- ---- หมวดที่ 2: ค่าลดหย่อน ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -174,9 +166,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
--- หมวดที่ 3: กำหนดการยื่นภาษี (Filing Deadlines)
--- ================================================================
+-- ---- หมวดที่ 3: กำหนดการยื่นภาษี ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -233,9 +223,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
--- หมวดที่ 4: ภาษีมูลค่าเพิ่ม (VAT)
--- ================================================================
+-- ---- หมวดที่ 4: ภาษีมูลค่าเพิ่ม (VAT) ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -264,9 +252,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
--- หมวดที่ 5: โทษและเบี้ยปรับ (Penalties)
--- ================================================================
+-- ---- หมวดที่ 5: โทษและเบี้ยปรับ ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -296,9 +282,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
--- หมวดที่ 6: การคืนภาษี (Tax Refund)
--- ================================================================
+-- ---- หมวดที่ 6: การคืนภาษี ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -328,9 +312,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
--- หมวดที่ 7: ภาษีหัก ณ ที่จ่าย (Withholding Tax)
--- ================================================================
+-- ---- หมวดที่ 7: ภาษีหัก ณ ที่จ่าย ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -360,9 +342,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
--- หมวดที่ 8: เคล็ดลับและคำแนะนำ (Tips)
--- ================================================================
+-- ---- หมวดที่ 8: เคล็ดลับและคำแนะนำ ----
 
 INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUES
 (
@@ -431,9 +411,7 @@ INSERT INTO tax_law_knowledge (category, title, content, source, tax_year) VALUE
   2567
 );
 
--- ================================================================
 -- ตรวจสอบข้อมูล
--- ================================================================
 
 SELECT category, COUNT(*) AS จำนวนรายการ
 FROM tax_law_knowledge
