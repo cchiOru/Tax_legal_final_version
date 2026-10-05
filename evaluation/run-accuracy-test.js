@@ -30,7 +30,7 @@ const {
 
 const ROOT = path.join(__dirname, '..');
 
-// ---- อ่านค่าจากไฟล์ .env (ค่าใน process.env มาก่อน) ----
+// ---- อ่านค่าจากไฟล์ .env ----
 function loadEnv() {
   const p = path.join(ROOT, '.env');
   const env = { ...process.env };
