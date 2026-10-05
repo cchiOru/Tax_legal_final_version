@@ -402,6 +402,40 @@ svg.กราฟเส้น.กำลังชี้ .ป้ายค่า{opa
   th,td{padding:10px 10px}
   .กราฟ{grid-template-columns:minmax(90px,38%) minmax(0,1fr) auto;gap:10px}
 }
+/* ---- กล่องยืนยันก่อนเปลี่ยนข้อมูล (แทน confirm ของเบราว์เซอร์) ---- */
+dialog.กล่องยืนยัน{border:none;padding:0;border-radius:18px;width:min(440px,calc(100vw - 32px));
+  background:var(--การ์ด);color:var(--หมึก);box-shadow:0 24px 60px -12px rgba(27,22,19,.45),0 0 0 1px rgba(27,22,19,.06)}
+dialog.กล่องยืนยัน::backdrop{background:rgba(27,22,19,.48);backdrop-filter:blur(3px)}
+dialog.กล่องยืนยัน[open]{animation:กล่องโผล่ .16s ease-out}
+@keyframes กล่องโผล่{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+.กล่องยืนยัน form{margin:0;padding:24px 24px 20px}
+.กล่องยืนยัน .หัวกล่อง{display:flex;gap:14px;align-items:flex-start}
+.กล่องยืนยัน .วงไอคอน{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+  background:var(--เน้นอ่อน);color:var(--เน้น)}
+.กล่องยืนยัน .วงไอคอน svg{width:22px;height:22px}
+.กล่องยืนยัน .วงไอคอน>span{display:none}
+.กล่องยืนยัน[data-แบบ="ปกติ"] .ไอคอน-ปกติ,.กล่องยืนยัน[data-แบบ="ดี"] .ไอคอน-ดี,
+.กล่องยืนยัน[data-แบบ="อันตราย"] .ไอคอน-อันตราย{display:grid}
+.กล่องยืนยัน[data-แบบ="ดี"] .วงไอคอน{background:var(--ดีอ่อน);color:var(--ดี)}
+.กล่องยืนยัน[data-แบบ="อันตราย"] .วงไอคอน{background:var(--อันตรายอ่อน);color:var(--อันตราย)}
+.กล่องยืนยัน h2{font-size:18px;line-height:1.4;margin:2px 0 4px}
+.กล่องยืนยัน .อธิบาย{color:var(--หมึกรอง);font-size:14px;line-height:1.65;margin:0}
+.กล่องยืนยัน .รายการ{margin:18px 0 0;padding:12px 14px;border-radius:12px;background:var(--พื้นรอง);border:1px solid var(--เส้น)}
+.กล่องยืนยัน .รายการ small{display:block;color:var(--หมึกจาง);font-size:12px;margin-bottom:2px}
+.กล่องยืนยัน .รายการ b{display:block;font-size:14.5px;font-weight:600;line-height:1.5}
+.กล่องยืนยัน .เปลี่ยน{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.กล่องยืนยัน .เปลี่ยน[hidden]{display:none}
+.กล่องยืนยัน .เปลี่ยน .ลูกศร{color:var(--หมึกจาง);font-size:15px}
+.กล่องยืนยัน .ปุ่มกล่อง{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+.กล่องยืนยัน .ปุ่มกล่อง button{min-width:96px}
+.กล่องยืนยัน[data-แบบ="ดี"] .ปุ่มตกลง{background:var(--ดี);border-color:var(--ดี)}
+.กล่องยืนยัน[data-แบบ="ดี"] .ปุ่มตกลง:hover{filter:brightness(.92)}
+.กล่องยืนยัน[data-แบบ="อันตราย"] .ปุ่มตกลง{background:var(--อันตราย);border-color:var(--อันตราย);color:#fff}
+.กล่องยืนยัน[data-แบบ="อันตราย"] .ปุ่มตกลง:hover{filter:brightness(.92);color:#fff}
+@media (max-width:600px){
+  .กล่องยืนยัน .ปุ่มกล่อง{flex-direction:column-reverse}
+  .กล่องยืนยัน .ปุ่มกล่อง button{width:100%}
+}
 @media print{
   .แถบข้าง,.แถบตัวกรอง{display:none}
   .โครง{display:block}
@@ -427,6 +461,9 @@ const เส้นไอคอน = {
   หนังสือ: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19"/>',
   เครื่องหมายถูก: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 10"/>',
   ธง: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
+  สลับ: '<path d="M4 8h13l-3.5-3.5"/><path d="M20 16H7l3.5 3.5"/>',
+  ถังขยะ: '<path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6.5 7l1 13h9l1-13"/><path d="M10 11v5.5M14 11v5.5"/>',
+  เตือน: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5"/><path d="M12 17.5h.01" stroke-width="2.6"/>',
 };
 
 /** สร้างไอคอนจากชื่อ คืนสตริงว่างถ้าไม่รู้จักชื่อนั้น */
@@ -736,6 +773,109 @@ const เมนู = [
 // ฝังเป็น data URI เพราะหน้าล็อกอินต้องแสดงโลโก้ได้ก่อนเข้าสู่ระบบ
 const โลโก้ = 'data:image/png;base64,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';
 
+// ---- กล่องยืนยันก่อนเปลี่ยนข้อมูล ----
+// ปุ่มที่มีแอตทริบิวต์ data-ยืนยัน-หัว จะเปิดกล่องนี้แทน confirm ของเบราว์เซอร์
+// ถ้าปิดสคริปต์ไว้ onsubmit/onclick เดิมที่เรียก confirm ยังทำงานแทนได้
+const กล่องยืนยัน = `<dialog class="กล่องยืนยัน" data-แบบ="ปกติ" aria-labelledby="กล่องยืนยัน-หัว">
+  <form method="dialog">
+    <div class="หัวกล่อง">
+      <div class="วงไอคอน" aria-hidden="true">
+        <span class="ไอคอน-ปกติ">${ไอคอน('สลับ')}</span>
+        <span class="ไอคอน-ดี">${ไอคอน('เครื่องหมายถูก')}</span>
+        <span class="ไอคอน-อันตราย">${ไอคอน('เตือน')}</span>
+      </div>
+      <div>
+        <h2 id="กล่องยืนยัน-หัว"></h2>
+        <p class="อธิบาย"></p>
+      </div>
+    </div>
+    <div class="รายการ">
+      <small></small><b></b>
+      <div class="เปลี่ยน" hidden>
+        <span class="ป้ายเล็ก จาก"></span><span class="ลูกศร" aria-hidden="true">→</span><span class="ป้ายเล็ก เป็น"></span>
+      </div>
+    </div>
+    <div class="ปุ่มกล่อง">
+      <button type="submit" value="ยกเลิก" class="รอง">ยกเลิก</button>
+      <button type="submit" value="ตกลง" class="ปุ่มตกลง">ตกลง</button>
+    </div>
+  </form>
+</dialog>`;
+
+// ข้อความทุกช่องใส่ด้วย textContent เพราะหัวข้อมาจากข้อมูลที่ผู้ดูแลกรอก
+const สคริปต์ยืนยัน = `<script>
+(function () {
+  var กล่อง = document.querySelector('dialog.กล่องยืนยัน');
+  if (!กล่อง || typeof กล่อง.showModal !== 'function') return;
+  var ปุ่มตกลง = กล่อง.querySelector('.ปุ่มตกลง');
+  var เปลี่ยน = กล่อง.querySelector('.เปลี่ยน');
+  var รอทำ = null;
+
+  function ใส่(sel, ข้อความ) { กล่อง.querySelector(sel).textContent = ข้อความ || ''; }
+  function ใส่ป้าย(sel, ค่า) {
+    var ส่วน = (ค่า || '').split('|');
+    var el = กล่อง.querySelector(sel);
+    el.textContent = ส่วน[0] || '';
+    el.className = 'ป้ายเล็ก ' + (sel === '.จาก' ? 'จาก ' : 'เป็น ') + (ส่วน[1] || '');
+  }
+
+  function เปิด(ที่มา, ทำต่อ) {
+    function d(ชื่อ) { return ที่มา.getAttribute('data-ยืนยัน-' + ชื่อ) || ''; }
+    กล่อง.setAttribute('data-แบบ', d('แบบ') || 'ปกติ');
+    ใส่('h2', d('หัว'));
+    ใส่('.อธิบาย', d('อธิบาย'));
+    ใส่('.รายการ small', d('รายการ'));
+    ใส่('.รายการ b', d('ชื่อ'));
+    if (d('จาก') && d('เป็น')) {
+      ใส่ป้าย('.จาก', d('จาก'));
+      ใส่ป้าย('.เป็น', d('เป็น'));
+      เปลี่ยน.hidden = false;
+    } else {
+      เปลี่ยน.hidden = true;
+    }
+    ปุ่มตกลง.textContent = d('ปุ่ม') || 'ตกลง';
+    รอทำ = ทำต่อ;
+    กล่อง.returnValue = '';
+    กล่อง.showModal();
+    ปุ่มตกลง.focus();
+  }
+
+  กล่อง.addEventListener('close', function () {
+    var ทำ = รอทำ;
+    รอทำ = null;
+    if (กล่อง.returnValue === 'ตกลง' && ทำ) ทำ();
+  });
+  // คลิกพื้นหลังนอกกล่อง = ยกเลิก
+  กล่อง.addEventListener('click', function (e) { if (e.target === กล่อง) กล่อง.close('ยกเลิก'); });
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ยืนยัน-หัว]'), function (el) {
+    if (el.tagName === 'FORM') {
+      el.removeAttribute('onsubmit');
+      el.addEventListener('submit', function (e) {
+        if (el.dataset['ผ่านแล้ว']) return;
+        e.preventDefault();
+        var ปุ่ม = e.submitter || null;
+        เปิด(el, function () {
+          el.dataset['ผ่านแล้ว'] = '1';
+          if (el.requestSubmit) el.requestSubmit(ปุ่ม); else el.submit();
+        });
+      });
+    } else {
+      el.removeAttribute('onclick');
+      el.addEventListener('click', function (e) {
+        var ฟอร์ม = el.form;
+        if (!ฟอร์ม || ฟอร์ม.dataset['ผ่านแล้ว']) return;
+        e.preventDefault();
+        เปิด(el, function () {
+          ฟอร์ม.dataset['ผ่านแล้ว'] = '1';
+          if (ฟอร์ม.requestSubmit) ฟอร์ม.requestSubmit(el); else el.click();
+        });
+      });
+    }
+  });
+})();
+</script>`;
+
 function หน้า({ title, active, body }) {
   const ลิงก์ = เมนู
     .map(
@@ -764,7 +904,9 @@ function หน้า({ title, active, body }) {
 </header>
 <main>${body}</main>
 </div>
+${กล่องยืนยัน}
 ${สคริปต์กราฟ}
+${สคริปต์ยืนยัน}
 </body></html>`;
 }
 
