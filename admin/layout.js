@@ -951,12 +951,15 @@ body{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax
 </section>
 <section class="ขวา"><div class="กล่อง">
   <h1>เข้าสู่ระบบ</h1>
-  <p class="คำอธิบาย">กรอกรหัสผ่านผู้ดูแลที่ตั้งไว้ในไฟล์ .env</p>
   <form method="post" action="/login">
     ${ข้อผิดพลาด ? `<div class="แจ้ง ผิด">${esc(ข้อผิดพลาด)}</div>` : ''}
     <label>
+      <span class="ชื่อช่อง">ชื่อผู้ใช้</span>
+      <input type="text" name="username" autofocus required autocomplete="username">
+    </label>
+    <label>
       <span class="ชื่อช่อง">รหัสผ่าน</span>
-      <input type="password" name="password" autofocus required autocomplete="current-password">
+      <input type="password" name="password" required autocomplete="current-password">
     </label>
     <button type="submit">เข้าสู่ระบบ</button>
   </form>

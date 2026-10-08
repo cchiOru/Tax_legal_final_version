@@ -125,7 +125,8 @@ services:
       ADMIN_DB_HOST: postgres
       ADMIN_DB_PORT: 5432
       APP_DB_NAME: ${APP_DB_NAME:-tax_advisor}
-      # รหัสผ่านเข้าหน้าเว็บ (ตั้งใน .env)
+      # ชื่อผู้ใช้และรหัสผ่านเข้าหน้าเว็บ (ตั้งใน .env)
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       # รหัสผ่านบัญชีฐานข้อมูล tax_admin_readonly (ตั้งใน .env)
       ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD}
