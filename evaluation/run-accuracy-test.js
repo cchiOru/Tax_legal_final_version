@@ -262,7 +262,8 @@ function retrieve(question, keywordMap, kb, limit = 3, isCalc = false) {
     }
     if (hit && found.indexOf(term) < 0) found.push(term);
   }
-  const keys = found.length ? found : ['ภาษี'];
+  // แปลงเป็นตัวพิมพ์เล็กให้เหมือน ILIKE ของระบบจริง ไม่งั้นคำอย่าง Solar Rooftop จะไม่ตรงกับหัวเรื่องที่แปลงแล้ว
+  const keys = (found.length ? found : ['ภาษี']).map((k) => k.toLowerCase());
 
   const scored = kb
     .map((r) => {

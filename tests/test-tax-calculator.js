@@ -151,8 +151,12 @@ test('TC-18 ประกันชีวิต + ประกันสุขภ�
   assert.strictEqual(item.จำนวน, 100000);
 });
 
-test('TC-19 ประกันสังคมหักได้ไม่เกิน 9,000 บาท', () => {
-  const r = calculateThaiPIT({ income: { salary: 1000000 }, allowances: { socialSecurity: 20000 } });
+test('TC-19 ประกันสังคมปีภาษี 2567 หักได้ไม่เกิน 9,000 บาท', () => {
+  const r = calculateThaiPIT({
+    income: { salary: 1000000 },
+    allowances: { socialSecurity: 20000 },
+    options: { taxYear: 2567 },
+  });
   const sso = r.รายละเอียดค่าลดหย่อน.find((d) => d.รายการ === 'เงินสมทบกองทุนประกันสังคม');
   assert.strictEqual(sso.จำนวน, 9000);
 });
@@ -430,20 +434,19 @@ test('TC-46 เงินสมทบต่อเดือนต้องเท�
   }
 });
 
-test('TC-47 เครื่องคำนวณต้องตัดเงินสมทบส่วนที่เกินเพดานของปีภาษีที่ใช้อยู่', () => {
-  const เพดาน = socialSecurityRule(TAX_YEAR).เพดานต่อปี;
-  const r = calculateThaiPIT({
-    income: { salary: 600000 },
-    allowances: { socialSecurity: 10000 },
-  });
-
-  const รายการ = r.รายละเอียดค่าลดหย่อน.find((d) => d.รายการ.includes('ประกันสังคม'));
-  assert.ok(รายการ, 'ไม่พบรายการค่าลดหย่อนประกันสังคมในผลลัพธ์');
-  assert.strictEqual(
-    รายการ.จำนวน,
-    เพดาน,
-    `จ่ายจริง 10,000 บาท ต้องใช้สิทธิได้เท่าเพดาน ${เพดาน} บาทเท่านั้น`
-  );
+test('TC-47 เครื่องคำนวณต้องตัดเงินสมทบส่วนที่เกินเพดานของปีภาษีที่คำนวณ', () => {
+  // จ่ายเกินเพดานของทุกปีที่รองรับ ผลต้องเท่าเพดานของปีนั้นพอดี
+  for (const ปี of [2567, 2568, 2569]) {
+    const เพดาน = socialSecurityRule(ปี).เพดานต่อปี;
+    const r = calculateThaiPIT({
+      income: { salary: 600000 },
+      allowances: { socialSecurity: 15000 },
+      options: { taxYear: ปี },
+    });
+    const รายการ = r.รายละเอียดค่าลดหย่อน.find((d) => d.รายการ.includes('ประกันสังคม'));
+    assert.ok(รายการ, `ปีภาษี ${ปี} ไม่พบรายการค่าลดหย่อนประกันสังคมในผลลัพธ์`);
+    assert.strictEqual(รายการ.จำนวน, เพดาน, `ปีภาษี ${ปี} ต้องใช้สิทธิได้เท่าเพดาน ${เพดาน} บาทเท่านั้น`);
+  }
 });
 
 test('TC-48 หมายเหตุของรายการประกันสังคมต้องบอกปีภาษีกำกับไว้ด้วย', () => {
@@ -1215,4 +1218,126 @@ test('TC-94 ผู้ใช้เอ่ยถึงประกันสัง�
     ['healthInsurance'],
     'ประกันสุขภาพผู้ใช้ไม่ได้เอ่ยถึง ต้องถูกตัด'
   );
+});
+
+// ---- ปีภาษีหลายปีและมาตรการรายปี (เพิ่ม 10 ต.ค. 2569) ----
+// ที่มา กรมสรรพากร "ลดหย่อนภาษี ปี 2568" rd.go.th/65908.html และกฎหมายออกใหม่ rd.go.th/21221.html
+
+const { DEFAULT_TAX_YEAR, SUPPORTED_TAX_YEARS, อ่านปีภาษี } = require('../n8n/tools/tax-calculator');
+const ลดหย่อน = (r, ชื่อ) => (r.รายละเอียดค่าลดหย่อน.find((d) => d.รายการ === ชื่อ) || {}).จำนวน;
+
+test('TC-95 ไม่ระบุปีภาษี ใช้ปีภาษีตั้งต้น 2569', () => {
+  const r = calculateThaiPIT({ income: { salary: 600000 }, allowances: { socialSecurity: 9000 } });
+  assert.strictEqual(DEFAULT_TAX_YEAR, 2569);
+  assert.strictEqual(r.ปีภาษี, 2569);
+  assert.strictEqual(r.สรุป.ภาษีที่ต้องชำระ, 20600, 'ตัวอย่างหลักใน README ต้องได้เท่าเดิม');
+});
+
+test('TC-96 ปีภาษีพื้นฐานเหมือนกันทุกปี ค่าลดหย่อนถาวรต้องให้ผลเท่ากัน', () => {
+  const input = (ปี) => ({
+    income: { salary: 900000 },
+    allowances: { spouse: true, children: 1, lifeInsurance: 50000, rmf: 100000, homeLoanInterest: 80000 },
+    options: { taxYear: ปี },
+  });
+  const ภาษี = SUPPORTED_TAX_YEARS.map((ปี) => calculateThaiPIT(input(ปี)).สรุป.ภาษีที่ต้องชำระ);
+  assert.ok(ภาษี.every((x) => x === ภาษี[0]), `ภาษีต้องเท่ากันทุกปี แต่ได้ ${ภาษี.join(', ')}`);
+});
+
+test('TC-97 รับปี ค.ศ. แล้วแปลงเป็น พ.ศ.', () => {
+  assert.strictEqual(อ่านปีภาษี(2025), 2568);
+  assert.strictEqual(อ่านปีภาษี('2569'), 2569);
+  assert.strictEqual(อ่านปีภาษี(undefined), 2569);
+  const r = calculateThaiPIT({ income: { salary: 600000 }, options: { taxYear: 2025 } });
+  assert.strictEqual(r.ปีภาษี, 2568);
+});
+
+test('TC-98 ปีภาษีที่ไม่รองรับต้องปฏิเสธ ไม่คำนวณด้วยค่าของปีอื่น', () => {
+  const r = calculateThaiPIT({ income: { salary: 600000 }, options: { taxYear: 2560 } });
+  assert.strictEqual(r.สำเร็จ, false);
+  assert.ok(r.ข้อผิดพลาด.includes('2567, 2568, 2569'));
+  assert.strictEqual(r.สรุป, undefined, 'ห้ามมีตัวเลขภาษีหลุดออกไป');
+});
+
+test('TC-99 Thai ESG ไม่เกิน 30% ของเงินได้ และไม่เกิน 300,000 บาท แยกจากกลุ่มเกษียณ', () => {
+  const r1 = calculateThaiPIT({ income: { salary: 2000000 }, allowances: { thaiESG: 400000 } });
+  assert.strictEqual(ลดหย่อน(r1, 'กองทุน Thai ESG'), 300000);
+  const r2 = calculateThaiPIT({ income: { salary: 500000 }, allowances: { thaiESG: 300000 } });
+  assert.strictEqual(ลดหย่อน(r2, 'กองทุน Thai ESG'), 150000, '30% ของ 500,000');
+  // RMF เต็มเพดานรวม 500,000 แล้ว Thai ESG ต้องยังได้เต็ม
+  const r3 = calculateThaiPIT({ income: { salary: 3000000 }, allowances: { rmf: 500000, thaiESG: 300000 } });
+  assert.strictEqual(ลดหย่อน(r3, 'กองทุน RMF'), 500000);
+  assert.strictEqual(ลดหย่อน(r3, 'กองทุน Thai ESG'), 300000);
+});
+
+test('TC-100 Easy E-Receipt มีเฉพาะปีภาษี 2567 และ 2568 ปี 2569 ต้องไม่นำมาคิดและต้องแจ้ง', () => {
+  const r68 = calculateThaiPIT({ income: { salary: 800000 }, allowances: { easyEReceipt: 60000 }, options: { taxYear: 2568 } });
+  assert.strictEqual(ลดหย่อน(r68, 'Easy E-Receipt'), 50000);
+  const r69 = calculateThaiPIT({ income: { salary: 800000 }, allowances: { easyEReceipt: 60000 } });
+  assert.strictEqual(ลดหย่อน(r69, 'Easy E-Receipt'), undefined);
+  assert.ok(String(r69.หมายเหตุเพิ่มเติม).includes('Easy E-Receipt'), 'ต้องบอกผู้ใช้ว่าไม่ได้นำมาคิด');
+});
+
+test('TC-101 ค่าก่อสร้างบ้านใหม่ ล้านละ 10,000 บาท นับเฉพาะล้านเต็ม ไม่เกิน 100,000 บาท', () => {
+  const ได้ = (จ่าย) =>
+    ลดหย่อน(
+      calculateThaiPIT({ income: { salary: 1500000 }, allowances: { homeConstruction: จ่าย }, options: { taxYear: 2568 } }),
+      'ค่าจ้างก่อสร้างบ้านใหม่'
+    );
+  assert.strictEqual(ได้(2500000), 20000);
+  assert.strictEqual(ได้(15000000), 100000);
+  assert.strictEqual(ได้(900000), undefined, 'ไม่ถึงล้านแรกหักไม่ได้');
+});
+
+test('TC-102 มาตรการปี 2568 ท่องเที่ยว 30,000 ศิลปะ 100,000 วิสาหกิจเพื่อสังคม 100,000', () => {
+  const r = calculateThaiPIT({
+    income: { salary: 1500000 },
+    allowances: { domesticTravel: 45000, artPurchase: 150000, socialEnterpriseInvestment: 120000 },
+    options: { taxYear: 2568 },
+  });
+  assert.strictEqual(ลดหย่อน(r, 'ค่าท่องเที่ยวภายในประเทศ'), 30000);
+  assert.strictEqual(ลดหย่อน(r, 'ค่าซื้องานศิลปะ'), 100000);
+  assert.strictEqual(ลดหย่อน(r, 'เงินลงทุนในวิสาหกิจเพื่อสังคม'), 100000);
+});
+
+test('TC-103 Solar Rooftop มีเฉพาะปีภาษี 2569 ไม่เกิน 200,000 บาท', () => {
+  const r69 = calculateThaiPIT({ income: { salary: 1500000 }, allowances: { solarRooftop: 250000 } });
+  assert.strictEqual(ลดหย่อน(r69, 'ค่าติดตั้ง Solar Rooftop'), 200000);
+  const r68 = calculateThaiPIT({ income: { salary: 1500000 }, allowances: { solarRooftop: 250000 }, options: { taxYear: 2568 } });
+  assert.strictEqual(ลดหย่อน(r68, 'ค่าติดตั้ง Solar Rooftop'), undefined);
+});
+
+test('TC-104 ตัวอย่างปี 2569 คำนวณครบตามมือ', () => {
+  // 1,200,000 - 100,000 = 1,100,000
+  // ลดหย่อน 60,000 + ประกันสังคม 10,500 + Thai ESG 300,000 + Solar 200,000 = 570,500
+  // เงินได้สุทธิ 529,500 ภาษี 7,500 + 20,000 + 29,500 x 15% = 31,925
+  const r = calculateThaiPIT({
+    income: { salary: 1200000 },
+    allowances: { socialSecurity: 12000, thaiESG: 400000, solarRooftop: 250000 },
+  });
+  assert.strictEqual(r.สรุป.เงินได้สุทธิ, 529500);
+  assert.strictEqual(r.สรุป.ภาษีที่ต้องชำระ, 31925);
+});
+
+test('TC-105 ด่านรู้จักช่องใหม่ทุกช่อง และ taxYear อยู่ใน options', () => {
+  for (const ช่อง of ['thaiESG', 'thaiESGX', 'thaiESGXFromLTF', 'homeConstruction', 'domesticTravel', 'artPurchase', 'socialEnterpriseInvestment', 'solarRooftop']) {
+    assert.ok(ชั้นที่ถูกของคีย์.allowances.includes(ช่อง), `${ช่อง} ต้องอยู่ใน allowances`);
+    assert.ok(คำบ่งชี้ค่าลดหย่อน[ช่อง], `${ช่อง} ต้องมีคำบ่งชี้สำหรับด่านตรวจที่มา`);
+  }
+  assert.ok(ชั้นที่ถูกของคีย์.options.includes('taxYear'));
+  assert.strictEqual(ชนิดที่ถูกของช่อง.taxYear, 'ตัวเลข');
+  const ผิดชั้น = ตรวจคีย์วางผิดชั้น({ income: { salary: 600000 }, taxYear: 2568 });
+  assert.deepStrictEqual(ผิดชั้น.map((x) => x.ชั้นที่ถูก), ['options']);
+});
+
+test('TC-106 ด่านตรวจที่มาตัด Solar ที่ผู้ใช้ไม่ได้เอ่ยถึง แต่รับเมื่อเอ่ยถึงจริง', () => {
+  const ตัด = ตรวจที่มาของค่าลดหย่อน(
+    { income: { salary: 900000 }, allowances: { solarRooftop: 200000 } },
+    'เงินเดือนปีละ 900,000 บาท ภาษีเท่าไหร่'
+  );
+  assert.deepStrictEqual(ตัด.ตัดออก.map((x) => x.ช่อง), ['solarRooftop']);
+  const รับ = ตรวจที่มาของค่าลดหย่อน(
+    { income: { salary: 900000 }, allowances: { solarRooftop: 200000 } },
+    'เงินเดือนปีละ 900,000 บาท ติดโซลาร์เซลล์ 200,000 บาท ภาษีเท่าไหร่'
+  );
+  assert.deepStrictEqual(รับ.ตัดออก, []);
 });

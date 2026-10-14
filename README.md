@@ -31,7 +31,7 @@ Development of an AI-Based Tax Advisory System on LINE Using Workflow Automation
 
 **สิ่งที่ต่างจากการถาม ChatGPT** คือตัวเลขทุกตัวมาจาก deterministic code ที่มี unit test กำกับ
 ไม่ใช่แบบจำลองคิดเอง ถามคำถามเดิมสิบครั้งได้คำตอบเดิมทุกครั้ง
-สถาปัตยกรรมเป็นแบบ RAG คือค้นจากตาราง `tax_law_knowledge` 105 รายการก่อน
+สถาปัตยกรรมเป็นแบบ RAG คือค้นจากตาราง `tax_law_knowledge` 112 รายการก่อน
 แล้วให้แบบจำลองเรียบเรียงคำตอบจากข้อมูลที่ค้นได้เท่านั้น
 
 ### หน้าหลังบ้านสำหรับผู้ดูแล
@@ -61,7 +61,7 @@ Development of an AI-Based Tax Advisory System on LINE Using Workflow Automation
  2. ดักคำสั่งจัดการข้อมูลของตัวเอง เช่น ลบข้อมูลของฉัน
  3. ดักคำทักทายและปุ่มเมนู ตอบด้วยข้อความสำเร็จรูปโดยไม่เรียกแบบจำลอง
  4. ดึงโปรไฟล์ผู้ใช้จาก LINE แล้วบันทึกลง PostgreSQL
- 5. retrieval จาก knowledge base ด้วย keyword matching 382 คู่
+ 5. retrieval จาก knowledge base ด้วย keyword matching 409 คู่
  6. intent classification ด้วยกฎ ถ้าต้องได้ตัวเลขจะแนบคำสั่งบังคับเรียก tool
  7. แยกเส้นทางตาม consent
       ├─ granted → AI Agent ที่ต่อ conversation memory และบันทึกบทสนทนา
@@ -92,7 +92,7 @@ Development of an AI-Based Tax Advisory System on LINE Using Workflow Automation
 
 **ทำไมไม่ใช้ vector search** ภาษาไทยเขียนติดกันโดยไม่มีช่องว่างระหว่างคำ PostgreSQL Full-Text Search
 จึงทำ tokenization ไม่ได้ วัดจากข้อมูลจริงแล้ว retrieval hit rate เป็นศูนย์
-เปลี่ยนมาใช้ domain-specific keyword matching ที่สร้างขึ้นเอง 382 คู่ แล้วได้ hit rate 100%
+เปลี่ยนมาใช้ domain-specific keyword matching ที่สร้างขึ้นเอง (ตอนวัดผลมี 382 คู่ ปัจจุบัน 409 คู่) แล้วได้ hit rate 100%
 เป็นข้อจำกัดของภาษาไทยที่งานภาษาอังกฤษไม่เจอ และเป็นผลการทดลองที่รายงานไว้ในบทที่ 4
 
 ---
@@ -101,7 +101,7 @@ Development of an AI-Based Tax Advisory System on LINE Using Workflow Automation
 
 | ตาราง | จำนวน | ใช้ทำอะไร |
 |---|---|---|
-| `tax_law_knowledge` | 105 รายการ | ใช้ตอบคำถามผู้ใช้ เรียบเรียงเป็นภาษาที่คนทั่วไปเข้าใจ ตัวเลขที่บังคับใช้จริงปี 2567 |
+| `tax_law_knowledge` | 112 รายการ | ใช้ตอบคำถามผู้ใช้ เรียบเรียงเป็นภาษาที่คนทั่วไปเข้าใจ ตัวเลขที่บังคับใช้จริงปีภาษี 2567 ถึง 2569 |
 | `revenue_code_current` | 309 มาตรา | ยกถ้อยคำของกฎหมายเมื่อผู้ใช้ถามถึงมาตราโดยตรง ดึงจาก rd.go.th |
 | `revenue_code_sections` | ฉบับ พ.ศ. 2482 | **ไม่ใช้แล้ว** ตัวเลขล้าสมัยทั้งหมด เก็บไว้เป็นบันทึกการทดลอง |
 
@@ -119,16 +119,21 @@ Development of an AI-Based Tax Advisory System on LINE Using Workflow Automation
 
 > **สิ่งที่ต้องรับประกันได้ ห้ามฝากไว้กับ prompt ต้องบังคับใน deterministic code เท่านั้น**
 
-วัดจากคำถาม 155 ข้อที่อ้างอิงกฎหมายจริง รันสามรอบเป็น 465 ครั้ง
+วัดจากคำถาม 165 ข้อที่อ้างอิงกฎหมายจริง รันสามรอบเป็น 495 ครั้ง
 ผลที่คัดไว้อ้างอิงในรายงานอยู่ที่ `evaluation/results/published/`
 
-| ผลล่าสุด 4 ต.ค. 2569 · Gemini 3.1 Flash Lite | |
+| ผลล่าสุด 11–12 ต.ค. 2569 · Gemini 3.1 Flash Lite | |
 |---|---|
-| ความแม่นยำโดยรวม | **99.8%** (464/465) |
-| เรียกเครื่องคำนวณเมื่อจำเป็น | 100% (162/162) |
-| ตัวเลขในคำตอบถูกต้อง | 100% (165/165) |
-| ค้นเจอข้อมูลอ้างอิง | 100% (465/465) |
-| เวลาตอบเฉลี่ย / P95 | 7.7 / 14.7 วินาที |
+| ความแม่นยำโดยรวม | **99.4%** (492/495) |
+| เรียกเครื่องคำนวณเมื่อจำเป็น | 100% (174/174) |
+| ตัวเลขในคำตอบถูกต้อง | 98.3% (174/177) |
+| ค้นเจอข้อมูลอ้างอิง | 100% (495/495) |
+| เวลาตอบเฉลี่ย / P95 | 16.4 / 44.2 วินาที |
+
+ข้อที่ผิดคือ Q123 ทั้งสามรอบ แบบจำลองส่งเบี้ยประกันชีวิตแบบบำนาญเข้าช่องประกันชีวิตทั่วไป
+(`lifeInsurance`) แทน `pensionInsurance` ตัวเลขภาษีจึงสูงเกินจริง
+เวลาตอบรอบนี้ช้ากว่าผลวันที่ 4 ต.ค. (7.7 / 14.7 วินาที) ระหว่างวัด Gemini ตอบ 503 (เซิร์ฟเวอร์ไม่ว่าง) 80 ครั้ง
+สคริปต์ไม่นับเวลารอก่อนลองใหม่ ตัวเลขนี้จึงเป็นเวลาที่ Gemini ใช้ตอบจริงในช่วงนั้น
 
 > **หมายเหตุ** ตัวเลขชุดนี้เป็นเพียงผลการทดสอบระบบด้วยสคริปต์ `evaluation/run-accuracy-test.js` เท่านั้น
 > ไม่ใช่ผลจากการทดลองใช้งานจริงกับผู้ใช้ที่เป็นคน
@@ -137,8 +142,8 @@ Development of an AI-Based Tax Advisory System on LINE Using Workflow Automation
 ถ้าแก้ไฟล์เหล่านั้น ผลเดิมจะถูกทิ้งและต้องวัดใหม่ทั้งหมด ตัวเลขที่รายงานจึงตรงกับโค้ดที่ใช้งานจริงเสมอ
 
 ```bash
-node --test tests/*.js                                  # ชุดทดสอบ 320 ข้อ ไม่ต่อเน็ต ไม่เสียโควตา
-node evaluation/run-accuracy-test.js --model=gemini --runs=3   # วัดจริง 465 ครั้ง หยุดแล้วรันต่อได้
+node --test tests/*.js                                  # ชุดทดสอบ 335 ข้อ ไม่ต่อเน็ต ไม่เสียโควตา
+node evaluation/run-accuracy-test.js --model=gemini --runs=3   # วัดจริง 495 ครั้ง หยุดแล้วรันต่อได้
 node evaluation/inspect-failures.js                     # ดูข้อที่ตอบผิด พร้อมค่าที่ส่งเข้าเครื่องคำนวณ
 ```
 
@@ -179,7 +184,7 @@ for f in seed-tax-law seed-tax-law-extra seed-tax-law-full \
          seed-tax-law-cases seed-tax-forms seed-tax-law-deductions-detail \
          seed-tax-law-exempt-and-freelance seed-tax-law-social-security \
          seed-tax-law-modern-income seed-tax-law-how-to-ask \
-         seed-tax-law-withholding-and-treaty; do
+         seed-tax-law-withholding-and-treaty seed-tax-law-2568-2569; do
   docker cp postgres/$f.sql tax-advisor-postgres:/tmp/
   docker exec tax-advisor-postgres psql -U n8n_admin -d tax_advisor -f /tmp/$f.sql
 done
@@ -190,7 +195,7 @@ for m in postgres/migrations/*.sql; do
 done
 ```
 
-ตรวจว่าเข้าครบ ต้องได้ **105** จากนั้นดึงตัวบทประมวลรัษฎากรฉบับปัจจุบันจากเว็บกรมสรรพากร
+ตรวจว่าเข้าครบ ต้องได้ **112** จากนั้นดึงตัวบทประมวลรัษฎากรฉบับปัจจุบันจากเว็บกรมสรรพากร
 
 ```bash
 docker exec tax-advisor-postgres psql -U n8n_admin -d tax_advisor -c "SELECT count(*) FROM tax_law_knowledge;"
@@ -242,9 +247,9 @@ LINE Developers Console แล้วเปิดสวิตช์ Use webhook
 n8n/build-workflow.py            แหล่งความจริงหนึ่งเดียวของเวิร์กโฟลว์ ห้ามแก้ JSON ตรง ๆ
 n8n/tools/tax-calculator.js      เครื่องคำนวณภาษีและด่านตรวจ แยกไว้เพื่อให้ทดสอบได้
 n8n/ollama/                      ค่าปรับแต่งแบบจำลองที่รันในเครื่อง
-postgres/seed-tax-law*.sql       knowledge base 105 รายการ
+postgres/seed-tax-law*.sql       knowledge base 112 รายการ
 postgres/migrations/             การเปลี่ยนแปลงโครงสร้างตารางตามลำดับ
-evaluation/test-questions-official.json   ชุดคำถาม 155 ข้อพร้อมแหล่งอ้างอิง
+evaluation/test-questions-official.json   ชุดคำถาม 165 ข้อพร้อมแหล่งอ้างอิง
 evaluation/run-accuracy-test.js  วัดความแม่นยำของค่าที่ใช้จริง
 evaluation/results/published/    ผลการวัดที่คัดไว้อ้างอิงในรายงาน
 admin/                           หน้าหลังบ้านสำหรับผู้ดูแล

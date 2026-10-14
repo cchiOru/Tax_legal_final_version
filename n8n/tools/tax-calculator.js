@@ -22,7 +22,14 @@
  * ============================================================================
  */
 
-const TAX_YEAR = 2567;
+/**
+ * ปีภาษีที่ใช้เมื่อผู้ใช้ไม่ได้ระบุ ตั้งเป็นปีปัจจุบัน (เงินได้ปี 2569 ยื่นแบบในปี 2570)
+ * ผู้ใช้ขอปีอื่นได้ทาง options.taxYear ภายในช่วง SUPPORTED_TAX_YEARS
+ */
+const DEFAULT_TAX_YEAR = 2569;
+const SUPPORTED_TAX_YEARS = [2567, 2568, 2569];
+/** คงชื่อเดิมไว้ให้โค้ดและชุดทดสอบที่อ้างถึง หมายถึงปีภาษีตั้งต้น */
+const TAX_YEAR = DEFAULT_TAX_YEAR;
 
 /** อัตราภาษีเงินได้บุคคลธรรมดาแบบขั้นบันได (ประมวลรัษฎากร มาตรา 48(1)) */
 const TAX_BRACKETS = [
@@ -63,7 +70,7 @@ function socialSecurityRule(taxYear) {
   return SOCIAL_SECURITY_CAP_BY_YEAR.find((r) => y >= r['ตั้งแต่ปีภาษี']);
 }
 
-/** เพดานค่าลดหย่อนและค่าคงที่อื่นๆ ปีภาษี 2567 */
+/** เพดานค่าลดหย่อนและค่าคงที่ที่เท่ากันทุกปีภาษีที่รองรับ (2567-2569) */
 const LIMITS = {
   PERSONAL: 60000,
   SPOUSE: 60000,
@@ -116,6 +123,93 @@ const LIMITS = {
   /** พ.ร.ฎ. 480: ยกเว้นหากภาษีตามวิธีนี้ไม่เกิน 5,000 บาท */
   MIN_TAX_EXEMPT: 5000,
 };
+
+/**
+ * ค่าลดหย่อนที่มีเฉพาะบางปีภาษี (มาตรการรายปีของรัฐ)
+ * ----------------------------------------------------------------------------
+ * ที่มา กรมสรรพากร "ลดหย่อนภาษี ปี 2568" rd.go.th/65908.html ข้อมูล ณ 24 ธ.ค. 2568
+ *      และกฎหมายออกใหม่ rd.go.th/21221.html ตรวจเมื่อ 10 ต.ค. 2569
+ *
+ * ปีที่ไม่อยู่ในตาราง แปลว่ามาตรการนั้นไม่มีหรือยังไม่ประกาศในปีนั้น
+ * เครื่องคำนวณจะไม่นำมาคิด และแจ้งในหมายเหตุ ไม่ตัดทิ้งเงียบ ๆ
+ * เช่น Easy E-Receipt ปีภาษี 2569 ยังไม่มีประกาศ ณ วันที่ตรวจ
+ *
+ * เพดาน: จำนวนสูงสุดที่หักได้ อัตรา: สัดส่วนของเงินได้พึงประเมินที่เป็นเพดานอีกชั้น
+ * ต่อทุกล้าน: หักได้เท่านี้ต่อค่าใช้จ่ายทุก 1,000,000 บาทเต็ม
+ */
+const มาตรการรายปี = {
+  easyEReceipt: {
+    ชื่อ: 'Easy E-Receipt',
+    ปี: {
+      2567: { เพดาน: 50000, หมายเหตุ: 'ไม่เกิน 50,000 บาท ซื้อ 1 ม.ค. - 15 ก.พ. 2567' },
+      2568: { เพดาน: 50000, หมายเหตุ: 'ไม่เกิน 50,000 บาท Easy E-Receipt 2.0 ซื้อ 16 ม.ค. - 28 ก.พ. 2568' },
+    },
+  },
+  thaiESG: {
+    ชื่อ: 'กองทุน Thai ESG',
+    ปี: {
+      2567: { อัตรา: 0.3, เพดาน: 300000, หมายเหตุ: 'ไม่เกิน 30% ของเงินได้ และไม่เกิน 300,000 บาท แยกจากกลุ่มเกษียณ' },
+      2568: { อัตรา: 0.3, เพดาน: 300000, หมายเหตุ: 'ไม่เกิน 30% ของเงินได้ และไม่เกิน 300,000 บาท แยกจากกลุ่มเกษียณ' },
+      2569: { อัตรา: 0.3, เพดาน: 300000, หมายเหตุ: 'ไม่เกิน 30% ของเงินได้ และไม่เกิน 300,000 บาท แยกจากกลุ่มเกษียณ' },
+    },
+  },
+  thaiESGX: {
+    ชื่อ: 'กองทุน Thai ESGX (เงินลงทุนใหม่)',
+    ปี: {
+      2568: { อัตรา: 0.3, เพดาน: 300000, หมายเหตุ: 'ไม่เกิน 30% ของเงินได้ และไม่เกิน 300,000 บาท' },
+    },
+  },
+  thaiESGXFromLTF: {
+    ชื่อ: 'กองทุน Thai ESGX (สับเปลี่ยนจาก LTF)',
+    ปี: {
+      2568: { เพดาน: 300000, หมายเหตุ: 'ปีแรกไม่เกิน 300,000 บาท' },
+      2569: { เพดาน: 50000, หมายเหตุ: 'ส่วนที่เหลือจากปีแรก ทยอยหักปีละไม่เกิน 50,000 บาท' },
+    },
+  },
+  homeConstruction: {
+    ชื่อ: 'ค่าจ้างก่อสร้างบ้านใหม่',
+    ปี: {
+      2567: { ต่อทุกล้าน: 10000, เพดาน: 100000, หมายเหตุ: 'ล้านละ 10,000 บาท ไม่เกิน 100,000 บาท' },
+      2568: { ต่อทุกล้าน: 10000, เพดาน: 100000, หมายเหตุ: 'ล้านละ 10,000 บาท ไม่เกิน 100,000 บาท' },
+    },
+  },
+  domesticTravel: {
+    ชื่อ: 'ค่าท่องเที่ยวภายในประเทศ',
+    ปี: {
+      2568: { เพดาน: 30000, หมายเหตุ: 'จ่าย 29 ต.ค. - 15 ธ.ค. 2568 ไม่เกิน 30,000 บาท' },
+    },
+  },
+  artPurchase: {
+    ชื่อ: 'ค่าซื้องานศิลปะ',
+    ปี: {
+      2568: { เพดาน: 100000, หมายเหตุ: 'ไม่เกิน 100,000 บาทต่อปีภาษี' },
+      2569: { เพดาน: 100000, หมายเหตุ: 'ไม่เกิน 100,000 บาทต่อปีภาษี' },
+    },
+  },
+  socialEnterpriseInvestment: {
+    ชื่อ: 'เงินลงทุนในวิสาหกิจเพื่อสังคม',
+    ปี: {
+      2568: { เพดาน: 100000, หมายเหตุ: 'ไม่เกิน 100,000 บาท' },
+    },
+  },
+  solarRooftop: {
+    ชื่อ: 'ค่าติดตั้ง Solar Rooftop',
+    ปี: {
+      2569: { เพดาน: 200000, หมายเหตุ: 'ไม่เกิน 200,000 บาท ใช้สิทธิได้ครั้งเดียว ติดตั้ง 3 มี.ค. 2569 - 31 ธ.ค. 2571' },
+    },
+  },
+};
+
+/**
+ * แปลงปีภาษีที่ส่งมาให้เป็น พ.ศ. ถ้าไม่ได้ส่งมาใช้ปีตั้งต้น
+ * รับปี ค.ศ. ด้วย เพราะแบบจำลองบางครั้งส่ง 2025 มาแทน 2568
+ */
+function อ่านปีภาษี(ค่า) {
+  if (ค่า === undefined || ค่า === null || ค่า === '') return DEFAULT_TAX_YEAR;
+  const y = Number(String(ค่า).replace(/[^0-9]/g, ''));
+  if (!Number.isFinite(y) || y === 0) return NaN;
+  return y > 1900 && y < 2200 ? y + 543 : y;
+}
 
 /**
  * อัตราการหักค่าใช้จ่ายแบบเหมาตามประเภทเงินได้
@@ -244,8 +338,9 @@ function calcExpenses(income, options) {
 }
 
 /** คำนวณค่าลดหย่อน (ยังไม่รวมเงินบริจาค ซึ่งต้องคำนวณทีหลังเพราะอิงฐาน 10%) */
-function calcAllowances(a, grossIncome) {
+function calcAllowances(a, grossIncome, taxYear = DEFAULT_TAX_YEAR) {
   const details = [];
+  const notes = [];
   let total = 0;
   const add = (label, amount, note) => {
     if (amount <= 0) return;
@@ -292,10 +387,10 @@ function calcAllowances(a, grossIncome) {
   const parentHealth = Math.min(num(a.parentHealthInsurance), LIMITS.PARENT_HEALTH_INSURANCE);
   if (parentHealth > 0) add('เบี้ยประกันสุขภาพบิดามารดา', parentHealth, 'ไม่เกิน 15,000 บาท');
 
-  const ssoCap = LIMITS.SOCIAL_SECURITY;
+  const ssoCap = socialSecurityRule(taxYear).เพดานต่อปี;
   const sso = Math.min(num(a.socialSecurity), ssoCap);
   if (sso > 0) {
-    add('เงินสมทบกองทุนประกันสังคม', sso, `ไม่เกิน ${ssoCap.toLocaleString('en-US')} บาท ปีภาษี ${TAX_YEAR}`);
+    add('เงินสมทบกองทุนประกันสังคม', sso, `ไม่เกิน ${ssoCap.toLocaleString('en-US')} บาท ปีภาษี ${taxYear}`);
   }
 
   // ---- กลุ่มกองทุนเพื่อการเกษียณ: จำกัดรายกอง แล้วจำกัดรวมกันอีกชั้นที่ 500,000 ----
@@ -323,15 +418,34 @@ function calcAllowances(a, grossIncome) {
   const homeLoan = Math.min(num(a.homeLoanInterest), LIMITS.HOME_LOAN_INTEREST);
   if (homeLoan > 0) add('ดอกเบี้ยเงินกู้ยืมเพื่อที่อยู่อาศัย', homeLoan, 'ไม่เกิน 100,000 บาท');
 
-  const easyReceipt = Math.min(num(a.easyEReceipt), LIMITS.EASY_E_RECEIPT);
-  if (easyReceipt > 0) add('Easy E-Receipt', easyReceipt, 'ไม่เกิน 50,000 บาท');
+  if (retirementCapApplied) {
+    notes.push('กองทุนเพื่อการเกษียณรวมกันเกิน 500,000 บาท ระบบปรับลดตามสัดส่วนให้อยู่ในเพดานแล้ว');
+  }
+
+  // ---- มาตรการรายปี คิดเฉพาะปีภาษีที่มีมาตรการนั้นจริง ----
+  for (const ช่อง of Object.keys(มาตรการรายปี)) {
+    const จ่าย = num(a[ช่อง]);
+    if (จ่าย <= 0) continue;
+    const ม = มาตรการรายปี[ช่อง];
+    const กฎ = ม.ปี[taxYear];
+    if (!กฎ) {
+      notes.push(
+        `${ม.ชื่อ} ใช้ได้เฉพาะปีภาษี ${Object.keys(ม.ปี).join(', ')} ` +
+          `จึงไม่นำ ${จ่าย.toLocaleString('en-US')} บาทมาคิดในปีภาษี ${taxYear}`
+      );
+      continue;
+    }
+    let ได้ = จ่าย;
+    if (กฎ.ต่อทุกล้าน) ได้ = Math.floor(จ่าย / 1000000) * กฎ.ต่อทุกล้าน;
+    if (กฎ.อัตรา) ได้ = Math.min(ได้, grossIncome * กฎ.อัตรา);
+    ได้ = Math.min(ได้, กฎ.เพดาน);
+    add(ม.ชื่อ, ได้, กฎ.หมายเหตุ);
+  }
 
   return {
     total: round2(total),
     details,
-    notes: retirementCapApplied
-      ? ['กองทุนเพื่อการเกษียณรวมกันเกิน 500,000 บาท ระบบปรับลดตามสัดส่วนให้อยู่ในเพดานแล้ว']
-      : [],
+    notes,
   };
 }
 
@@ -383,6 +497,18 @@ function calculateThaiPIT(input) {
   const allowances = data.allowances && typeof data.allowances === 'object' ? data.allowances : {};
   const options = data.options && typeof data.options === 'object' ? data.options : {};
 
+  // ---- ปีภาษี ----
+  const taxYear = อ่านปีภาษี(options.taxYear);
+  if (SUPPORTED_TAX_YEARS.indexOf(taxYear) < 0) {
+    return {
+      สำเร็จ: false,
+      ข้อผิดพลาด:
+        `ระบบคำนวณได้เฉพาะปีภาษี ${SUPPORTED_TAX_YEARS.join(', ')} ` +
+        `ถ้าผู้ใช้ไม่ได้ระบุปี ไม่ต้องส่ง options.taxYear ระบบจะใช้ปีภาษี ${DEFAULT_TAX_YEAR}`,
+      ปีภาษี: options.taxYear,
+    };
+  }
+
   // ---- ขั้นที่ 1: เงินได้พึงประเมินรวม ----
   const incomeKeys = Object.keys(EXPENSE_RULES);
   const grossIncome = incomeKeys.reduce((sum, k) => sum + num(income[k]), 0);
@@ -391,7 +517,7 @@ function calculateThaiPIT(input) {
     return {
       สำเร็จ: false,
       ข้อผิดพลาด: 'ไม่พบข้อมูลเงินได้ กรุณาระบุเงินได้อย่างน้อย 1 ประเภท เช่น salary (เงินเดือนทั้งปี)',
-      ปีภาษี: TAX_YEAR,
+      ปีภาษี: taxYear,
     };
   }
 
@@ -400,7 +526,7 @@ function calculateThaiPIT(input) {
   const incomeAfterExpense = round2(grossIncome - expenses.total);
 
   // ---- ขั้นที่ 3: หักค่าลดหย่อน (ยังไม่รวมบริจาค) ----
-  const allowanceResult = calcAllowances(allowances, grossIncome);
+  const allowanceResult = calcAllowances(allowances, grossIncome, taxYear);
   const baseForDonation = Math.max(round2(incomeAfterExpense - allowanceResult.total), 0);
 
   // ---- ขั้นที่ 4: หักเงินบริจาค (ฐาน 10% คำนวณจากยอดหลังหักค่าใช้จ่ายและค่าลดหย่อน) ----
@@ -492,7 +618,7 @@ function calculateThaiPIT(input) {
 
   return {
     สำเร็จ: true,
-    ปีภาษี: TAX_YEAR,
+    ปีภาษี: taxYear,
     คำนวณจาก: usedItems.join(' · ') || 'ไม่มีข้อมูลที่ใช้คำนวณ',
     สรุป: {
       เงินได้พึงประเมินรวม: round2(grossIncome),
@@ -530,7 +656,7 @@ function calculateThaiPIT(input) {
     ...(allowanceResult.notes.length ? { หมายเหตุเพิ่มเติม: allowanceResult.notes } : {}),
     // คำเตือนฉบับย่อ เพราะโหนดเตรียมคำตอบต่อคำเตือนฉบับเต็มให้ผู้ใช้อยู่แล้ว
     // ไม่จำเป็นต้องให้แบบจำลองอ่านข้อความยาวซ้ำอีกรอบ
-    คำเตือน: 'ประมาณการตามข้อมูลที่ผู้ใช้ให้มา อัตราปีภาษี 2567 ตรวจสอบกับกรมสรรพากรก่อนยื่นจริง',
+    คำเตือน: `ประมาณการตามข้อมูลที่ผู้ใช้ให้มา อัตราปีภาษี ${taxYear} ตรวจสอบกับกรมสรรพากรก่อนยื่นจริง`,
   };
 }
 
@@ -717,6 +843,14 @@ const คำบ่งชี้ค่าลดหย่อน = {
   donationEducation: ['บริจาค', 'การกุศล'],
   donationGeneral: ['บริจาค', 'การกุศล'],
   easyEReceipt: ['easy', 'e-receipt', 'อีรีซีท', 'ช้อปดีมีคืน', 'ใบกำกับ'],
+  thaiESG: ['esg', 'อีเอสจี'],
+  thaiESGX: ['esgx', 'อีเอสจีเอ็กซ์'],
+  thaiESGXFromLTF: ['ltf', 'แอลทีเอฟ'],
+  homeConstruction: ['สร้างบ้าน', 'ก่อสร้าง', 'ปลูกบ้าน', 'บ้านใหม่'],
+  domesticTravel: ['เที่ยว', 'ที่พัก', 'โรงแรม', 'นำเที่ยว'],
+  artPurchase: ['ศิลปะ', 'งานศิลป์', 'ภาพวาด', 'ประติมากรรม'],
+  socialEnterpriseInvestment: ['วิสาหกิจเพื่อสังคม', 'social enterprise'],
+  solarRooftop: ['โซลาร์', 'solar', 'แสงอาทิตย์'],
 };
 
 // ---------------------------------------------------------------------------
@@ -1049,10 +1183,18 @@ const ชั้นที่ถูกของคีย์ = {
     'nsf',
     'homeLoanInterest',
     'easyEReceipt',
+    'thaiESG',
+    'thaiESGX',
+    'thaiESGXFromLTF',
+    'homeConstruction',
+    'domesticTravel',
+    'artPurchase',
+    'socialEnterpriseInvestment',
+    'solarRooftop',
     'donationGeneral',
     'donationEducation',
   ],
-  options: ['professionType', 'rentType'],
+  options: ['professionType', 'rentType', 'taxYear'],
 };
 
 /**
@@ -1200,6 +1342,8 @@ const ชนิดที่ถูกของช่อง = (() => {
   // ถ้าส่งเลข 1 มา เครื่องคำนวณจะถือว่าไม่มีคู่สมรส แล้วลดหย่อน 60,000 จะหายไป
   m.spouse = 'ใช่หรือไม่ใช่';
   for (const ช่อง of ชั้นที่ถูกของคีย์.options) m[ช่อง] = 'ข้อความ';
+  // ปีภาษีต้องอ่านเป็นตัวเลขได้ ถ้าส่งเป็นคำว่า "ปีนี้" ระบบจะไม่รู้ว่าปีไหน
+  m.taxYear = 'ตัวเลข';
   m.withholdingTax = 'ตัวเลข';
   // เครื่องคำนวณค่าปรับใช้กฎเดียวกัน
   m.taxDue = 'ตัวเลข';
@@ -1381,4 +1525,8 @@ module.exports = {
   LIMITS,
   PENALTY,
   TAX_YEAR,
+  DEFAULT_TAX_YEAR,
+  SUPPORTED_TAX_YEARS,
+  มาตรการรายปี,
+  อ่านปีภาษี,
 };
